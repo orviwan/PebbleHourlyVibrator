@@ -1,0 +1,19 @@
+{
+    "appKeys": {},
+    "capabilities": [
+        ""
+    ],
+    "companyName": "Orviwan",
+    "longName": "Hourly Vibrator",
+    "projectType": "native",
+    "resources": {
+        "media": []
+    },
+    "shortName": "Hourly Vibrator",
+    "uuid": "7b1f069f-6d41-40c2-a8de-09ba0260dfe0",
+    "versionCode": 1,
+    "versionLabel": "1.0",
+    "watchapp": {
+        "watchface": false
+    }
+}
