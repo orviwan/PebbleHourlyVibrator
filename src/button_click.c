@@ -1,15 +1,14 @@
 #include <pebble.h>
 
+#define WAKEUP_REASON 0
+	
 static Window *window;
 static TextLayer *text_layer;
-static bool timer_is_scheduled = false;
+static WakeupId s_wakeup_id = 0;
 
-
-static void my_wakeup_handler(WakeupID wakeup_id, int32_t reason) {
+static void wakeup_handler(WakeupId wakeup_id, int32_t reason) {
 	APP_LOG(APP_LOG_LEVEL_DEBUG, "Woke up due to: %lu", reason);
-	//doesn't need to do anything, tick timer should deal with everything
 }
-
 
 static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
 	if (units_changed & HOUR_UNIT) {
@@ -17,20 +16,20 @@ static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
 		vibes_double_pulse();
 	}
 
-	if(!timer_is_scheduled) {			
+  //Check the event is not already scheduled
+  if(!wakeup_query(s_wakeup_id, NULL)) {
+		
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Current time: %d:%d:%d", tick_time->tm_hour, tick_time->tm_min, tick_time->tm_sec);	
 		
-		time_t wakeup_time;
-		wakeup_time = (tick_time->tm_hour * 60 * 60) + 3598; //current hour + 59 minutes, 58 seconds
-		tick_time = (localtime(&wakeup_time));
+		time_t wakeup_time = (tick_time->tm_hour * 60 * 60) + 3598; //current hour + 59 minutes, 58 seconds
+		tick_time = localtime(&wakeup_time);		
+		
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Next wake: %d:%d:%d", tick_time->tm_hour, tick_time->tm_min, tick_time->tm_sec);
 		
-		wakeup_cancel_all(); //just in case
-		
-		APP_LOG(APP_LOG_LEVEL_DEBUG, "Scheduling Wakeup Timer");	
-		wakeup_schedule(wakeup_time, 3, true);
-		wakeup_service_subscribe(my_wakeup_handler);		
-		timer_is_scheduled = true;
+		// Schedule wakeup event
+    s_wakeup_id = wakeup_schedule(wakeup_time, WAKEUP_REASON, true);	
+
+		APP_LOG(APP_LOG_LEVEL_DEBUG, "WakeupId: %lu", s_wakeup_id);
 	}
 }
 
@@ -43,7 +42,26 @@ static void window_load(Window *window) {
   text_layer_set_text_alignment(text_layer, GTextAlignmentCenter);
   layer_add_child(window_layer, text_layer_get_layer(text_layer));
 	
+  // Subscribe to Wakeup API
+  wakeup_service_subscribe(wakeup_handler);
+
+  // Was this a wakeup?
+  if(launch_reason() == APP_LAUNCH_WAKEUP) {
+		
+		APP_LOG(APP_LOG_LEVEL_DEBUG, "The app was started by a wakeup");
+		
+    // The app was started by a wakeup
+    WakeupId id = 0;
+    int32_t reason = 0;
+
+    // Get details and handle the wakeup
+    wakeup_get_launch_event(&id, &reason);
+    wakeup_handler(id, reason);
+  } 	
+	
+	// Subscribe to TICK
 	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
+	
 }
 
 static void window_unload(Window *window) {
@@ -56,8 +74,7 @@ static void init(void) {
 	.load = window_load,
     .unload = window_unload,
   });
-  const bool animated = false;
-  window_stack_push(window, animated);	
+  window_stack_push(window, false);		
 }
 
 static void deinit(void) {
